@@ -2,55 +2,63 @@ import pandas as pd
 import os
 from PIL import Image
 
-fixed_width = 30
-fixed_height = 30
+# =============================
+# Configurações iniciais
+# =============================
+csv_path     = 'test.csv'       # caminho para o CSV de trajetórias
+img_folder   = 'Frames'          # pasta onde estão os frames gerados
+img_ext      = 'png'             # extensão dos frames (png ou jpg)
+fixed_width  = 30                # largura fixa da bounding box em pixels
+fixed_height = 30                # altura fixa da bounding box em pixels
 
-csv_path = 'trainVideo1.csv'
-img_folder = 'Frames'
-
-# Lê o CSV
+# =============================
+# 1. Carrega e limpa o CSV
+# =============================
 df = pd.read_csv(csv_path)
-print("Colunas do CSV:", df.columns)
-
-# Converte a coluna 'Frame' para numérico e remove linhas inválidas
 df['Frame'] = pd.to_numeric(df['Frame'], errors='coerce')
-df = df.dropna(subset=['Frame'])
+df = df.dropna(subset=['Video', 'Frame', 'Px', 'Py', 'Class'])
 df['Frame'] = df['Frame'].astype(int)
 
-# Se você quiser trabalhar apenas com um vídeo (por exemplo, P1), pode filtrar:
-# df = df[df['Video'] == 'P1']
+# =============================
+# 2. Agrupa por vídeo e frame
+# =============================
+grouped = df.groupby(['Video', 'Frame'])
 
-# Agrupa por frame
-grouped = df.groupby('Frame')
-
-for frame_num, group in grouped:
-    # Gera o nome da imagem no padrão "frame_00000.jpg", "frame_00001.jpg", etc.
-    img_name = f"frame_{frame_num:05d}.jpg"
-    print(f"Processando frame: {img_name}")
-    
+# =============================
+# 3. Processa cada grupo
+# =============================
+for (video, frame_num), group in grouped:
+    # nome do arquivo de imagem: P1_frame_000000.png
+    img_name = f"{video}_frame_{frame_num:06d}.{img_ext}"
     img_path = os.path.join(img_folder, img_name)
-    try:
-        with Image.open(img_path) as img:
-            img_width, img_height = img.size
-    except Exception as e:
-        print(f"Erro ao abrir a imagem {img_path}: {e}")
+
+    # verifica existência da imagem
+    if not os.path.isfile(img_path):
+        print(f"[AVISO] Imagem não encontrada: {img_path}")
         continue
 
-    # Define o nome do arquivo de label para esse frame
-    txt_filename = os.path.splitext(img_name)[0] + '.txt'
-    txt_path = os.path.join(img_folder, txt_filename)
-    
+    # abre a imagem para obter largura e altura
+    try:
+        with Image.open(img_path) as img:
+            img_w, img_h = img.size
+    except Exception as e:
+        print(f"[AVISO] Erro ao abrir {img_path}: {e}")
+        continue
+
+    # monta caminho do arquivo de label: P1_frame_000000.txt
+    txt_name = f"{video}_frame_{frame_num:06d}.txt"
+    txt_path = os.path.join(img_folder, txt_name)
+
+    # escreve as anotações no formato YOLO
     with open(txt_path, 'w') as f:
         for _, row in group.iterrows():
-            # Converte Px e Py para float
+            class_id = int(row['Class'])
             px = float(row['Px'])
             py = float(row['Py'])
-            
-            x_center_norm = px / img_width
-            y_center_norm = py / img_height
-            width_norm = fixed_width / img_width
-            height_norm = fixed_height / img_height
-            
-            # Escreve a linha de anotação no formato YOLO:
-            # <classe> <x_center_norm> <y_center_norm> <width_norm> <height_norm>
-            f.write(f"0 {x_center_norm} {y_center_norm} {width_norm} {height_norm}\n")
+            x_center = px / img_w
+            y_center = py / img_h
+            w_norm = fixed_width / img_w
+            h_norm = fixed_height / img_h
+            f.write(f"{class_id} {x_center:.6f} {y_center:.6f} {w_norm:.6f} {h_norm:.6f}\n")
+
+print("✔️ Geração de arquivos de label concluída.")

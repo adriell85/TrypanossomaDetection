@@ -57,6 +57,6 @@ def draw_bounding_boxes(img_path, label_path, output_path=None):
     print(f"Imagem salva com caixas: {output_path}")
 
 # Exemplo de uso:
-img_file = 'Frames/frame_00000.jpg'
-label_file = 'Frames/frame_00000.txt'
+img_file = 'Frames/P1_frame_000309.png'
+label_file = 'Frames/P1_frame_000309.txt'
 draw_bounding_boxes(img_file, label_file)
